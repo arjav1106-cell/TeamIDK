@@ -1,0 +1,56 @@
+version: "3.9"
+services:
+  postgres:
+    image: postgres:16
+    container_name: ims-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ims
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+  python-service:
+    build:
+      context: .
+      dockerfile: python-service/Dockerfile
+    container_name: ims-python
+    restart: unless-stopped
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: gemini-1.5-flash
+    ports:
+      - "8001:8001"
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ims-backend
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/ims
+      PYTHON_SERVICE_URL: http://python-service:8001
+      JWT_SECRET: replace_with_long_secret
+      SHARED_LOGIN_PASSWORD: ims123
+    depends_on:
+      - postgres
+      - python-service
+    ports:
+      - "4000:4000"
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ims-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+volumes:
+  postgres_data:
